@@ -5,7 +5,7 @@ import gym
 from skimage import io, color, transform
 import numpy as np
 import random
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Dense,MaxPooling2D,Conv2D,Flatten
 from keras.optimizers import Adam
 from collections import deque
@@ -27,6 +27,16 @@ class Agent:
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.99
         self.model = self.create_model()
+        self.save_model(0)
+
+
+    def save_model(self, i):
+        print("Saving model...")
+        self.model.save("mspacman_weights.h5")
+
+    def load_model(self,path):
+        print("Loading model...")
+        self.model = load_model(path)
 
 
     def create_model(self):
@@ -43,7 +53,7 @@ class Agent:
         model.add(Dense(24,activation='relu'))
         model.add(Dense(self.action_size, activation='softmax'))
         model.compile(loss = 'categorical_crossentropy', optimizer = Adam(lr = self.learning_rate))
-
+        print(model.summary())
         return model
 
 
@@ -158,18 +168,23 @@ def run_simulation():
                 experience_replay_capacity=EXPERIENCE_REPLAY_CAPACITY,
                 minibatch_size=MINIBATCH_SIZE,
                 learning_rate=LEARNING_RATE,gamma = GAMMA,preprocess_image_dim=PREPROCESS_IMAGE_DIM)
+    agent.load_model("mspacman_weights.h5")
 
     #initialize auxiliary data structures
     # S_LIST = [] # Stores PHI_LENGTH frames at a time
     # TOT_FRAMES = 0  # Counter of frames covered till now
 
     for i_episode in range(NUM_EPISODES):
+
+        if i_episode != 0 and i_episode%100==0:
+            agent.save_model(i_episode)
+
         OBS = ENV.reset()
         EPISODE_REWARD = 0
         time = 0
 
         while True:
-            # ENV.render()
+            ENV.render()
             OBS = agent.preprocess_observation(OBS)
             # ensure that S_LIST is populated with PHI_LENGTH frames
             """
@@ -214,13 +229,12 @@ def run_simulation():
             EPISODE_REWARD += REWARD
             time += 1
 
-        if (i_episode%5==0):
-            SCORE_LIST.append(EPISODE_REWARD)
+        SCORE_LIST.append(EPISODE_REWARD)
         if (len(agent.memory)>agent.minibatch_size):
             agent.learn()
 
 def plot_rewards(score_list, episode_num):
-    episode_num = [x for x in range(0,episode_num,5)]
+    episode_num = [x for x in range(0,episode_num)]
     plt.plot(episode_num, score_list)
     plt.show()
 
