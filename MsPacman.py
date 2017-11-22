@@ -9,6 +9,7 @@ from keras.models import Sequential
 from keras.layers import Dense,MaxPooling2D,Conv2D,Flatten
 from keras.optimizers import Adam
 from collections import deque
+import matplotlib.pyplot as plt
 
 class Agent:
 
@@ -21,8 +22,8 @@ class Agent:
         self.gamma = gamma
         self.preprocess_image_dim = preprocess_image_dim
 
-        self.memory = deque(maxlen = 2000)
-        self.log_path = []
+        self.memory = []
+        self.ere_counter = 0
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.99
         self.model = self.create_model()
@@ -31,10 +32,10 @@ class Agent:
     def create_model(self):
         model = Sequential()
         model.add(Conv2D(32, (5,5),input_shape=(1,84,84), strides=(1,1), padding='same', data_format='channels_first', activation='relu', use_bias=True, bias_initializer='zeros'))
-        model.add(MaxPooling2D(pool_size=(2, 2), strides=(2,2), padding='valid', data_format=None))
+        # model.add(MaxPooling2D(pool_size=(2, 2), strides=(2,2), padding='valid', data_format=None))
 
         model.add(Conv2D(32, (5,5), strides=(1,1), padding='same', data_format=None, activation='relu', use_bias=True, bias_initializer='zeros'))
-        model.add(MaxPooling2D(pool_size=(2, 2), strides=(2,2), padding='valid', data_format=None))
+        # model.add(MaxPooling2D(pool_size=(2, 2), strides=(2,2), padding='valid', data_format=None))
 
         model.add(Flatten())
 
@@ -51,8 +52,12 @@ class Agent:
         Add an experience replay example to our agent's replay memory. If
         memory is full, overwrite previous examples, starting with the oldest
         """
-        if (len(self.memory) < self.experience_replay_capacity):
+        if (self.ere_counter >= self.experience_replay_capacity):
+            self.ere_counter = 0
+            self.memory[self.ere_counter] = experience_replay_example
+        else:
             self.memory.append(experience_replay_example)
+        self.ere_counter += 1
 
 
     def preprocess_observation(self, observation, prediction=False):
@@ -83,7 +88,6 @@ class Agent:
             return action
         act_values = self.model.predict(observation) # Forward Propagation
         action = np.argmax(act_values[0])
-        self.log_path.append(action)
         return action
 
     def learn(self):
@@ -92,7 +96,7 @@ class Agent:
         and learn from them
         """
         minibatch = random.sample(self.memory, self.minibatch_size)
-        for obs, action, lives, reward, next_obs, done in minibatch:
+        for obs, action, reward, next_obs, done in minibatch:
             obs = np.reshape(np.array(obs),[1,1,self.preprocess_image_dim,self.preprocess_image_dim])
             next_obs = np.reshape(np.array(next_obs),[1,1,self.preprocess_image_dim,self.preprocess_image_dim])
             target = reward
@@ -112,18 +116,20 @@ GAME_TYPE = 'MsPacman-v0'
 
 #environment parameters
 NUM_EPISODES = 500
-MAX_TIMESTEPS = 1000
+MAX_TIMESTEPS = 5
 FRAME_SKIP = 2
 PHI_LENGTH = 4
 
 #agent parameters
 NAIVE_RANDOM = False
-EPSILON = 0.995
+EPSILON = 1.0
 GAMMA = 0.95
 EXPERIENCE_REPLAY_CAPACITY = 1000
 MINIBATCH_SIZE = 32
-LEARNING_RATE = 0.01
+LEARNING_RATE = 0.1
 PREPROCESS_IMAGE_DIM = 84
+SCORE_LIST = []
+
 
 def run_simulation():
     """
@@ -154,24 +160,24 @@ def run_simulation():
                 learning_rate=LEARNING_RATE,gamma = GAMMA,preprocess_image_dim=PREPROCESS_IMAGE_DIM)
 
     #initialize auxiliary data structures
-    S_LIST = [] # Stores PHI_LENGTH frames at a time
-    TOT_FRAMES = 0  # Counter of frames covered till now
+    # S_LIST = [] # Stores PHI_LENGTH frames at a time
+    # TOT_FRAMES = 0  # Counter of frames covered till now
 
     for i_episode in range(NUM_EPISODES):
         OBS = ENV.reset()
-        LOG_PATH = [] # Stores actions taken in each episode
         EPISODE_REWARD = 0
+        time = 0
 
-        for time in range(MAX_TIMESTEPS):
-            ENV.render()
+        while True:
+            # ENV.render()
             OBS = agent.preprocess_observation(OBS)
             # ensure that S_LIST is populated with PHI_LENGTH frames
-
+            """
             if TOT_FRAMES < PHI_LENGTH:
                 S_LIST.append(agent.preprocess_observation(OBS))
                 TOT_FRAMES += 1
                 continue
-
+            """
 #             X = np.array(S_LIST)
 #             print(X.shape) #(4,1,84,84)
 
@@ -179,13 +185,10 @@ def run_simulation():
             ACTION = agent.take_action(OBS)
 #             print(ACTION)
 
-            NEXT_OBS, REWARD, DONE, LIVES = ENV.step(ACTION) # NEXT_OBS is a numpy.ndarray of shape(210,160,3)
+            NEXT_OBS, REWARD, DONE, INFO = ENV.step(ACTION) # NEXT_OBS is a numpy.ndarray of shape(210,160,3)
 
-            LIVES = LIVES.get('ale.lives')
+            # LIVES = LIVES.get('ale.lives')
             # Calculation of Reward
-
-            REWARD = time*(LIVES**4)
-            REWARD = REWARD if not DONE else -1000
 
 #             if (time%50==0):
 #                 print(REWARD)
@@ -193,9 +196,7 @@ def run_simulation():
 #             print(NEXT_OBS, REWARD, DONE,'\n\n\n\n\n\n\n\n')
             NEXT_OBS = agent.preprocess_observation(NEXT_OBS) # shape(1,84,84)
 
-            EPISODE_REWARD += REWARD/100000
-
-            EREG = [OBS, ACTION, LIVES, REWARD, NEXT_OBS, DONE]
+            EREG = [OBS, ACTION, REWARD, NEXT_OBS, DONE]
 #             print(EREG)
 
             agent.append_experience_replay_example(EREG)
@@ -206,12 +207,22 @@ def run_simulation():
                 break
 
             #update state list with next observation
-
+            """
             S_LIST.append(agent.preprocess_observation(OBS))
             S_LIST.pop(0)
+            """
+            EPISODE_REWARD += REWARD
+            time += 1
 
-
+        if (i_episode%5==0):
+            SCORE_LIST.append(EPISODE_REWARD)
         if (len(agent.memory)>agent.minibatch_size):
             agent.learn()
 
+def plot_rewards(score_list, episode_num):
+    episode_num = [x for x in range(0,episode_num,5)]
+    plt.plot(episode_num, score_list)
+    plt.show()
+
 run_simulation()
+plot_rewards(SCORE_LIST, NUM_EPISODES)
