@@ -89,8 +89,8 @@ class Agent:
         Given an observation, the model attempts to take an action
         according to its q-function approximation
         """
-        observation = np.array(observation)
-        observation = np.reshape(observation, [1,1,self.preprocess_image_dim,self.preprocess_image_dim])
+        observation = np.array(observation) #(4,1,84,84)
+        observation = np.reshape(observation, [4,1,self.preprocess_image_dim,self.preprocess_image_dim])
 
 #         print(observation.shape) (1,84,84)
         if (np.random.rand() <= self.epsilon):
@@ -107,8 +107,8 @@ class Agent:
         """
         minibatch = random.sample(self.memory, self.minibatch_size)
         for obs, action, reward, next_obs, done in minibatch:
-            obs = np.reshape(np.array(obs),[1,1,self.preprocess_image_dim,self.preprocess_image_dim])
-            next_obs = np.reshape(np.array(next_obs),[1,1,self.preprocess_image_dim,self.preprocess_image_dim])
+            obs = np.reshape(np.array(obs),[4,1,self.preprocess_image_dim,self.preprocess_image_dim])
+            next_obs = np.reshape(np.array(next_obs),[4,1,self.preprocess_image_dim,self.preprocess_image_dim])
             target = reward
             if not done:
                 target = reward + self.gamma*np.amax(self.model.predict(next_obs)[0])
@@ -127,7 +127,7 @@ GAME_TYPE = 'MsPacman-v0'
 #environment parameters
 NUM_EPISODES = 500
 MAX_TIMESTEPS = 5
-FRAME_SKIP = 2
+# FRAME_SKIP = 2
 PHI_LENGTH = 4
 
 #agent parameters
@@ -171,8 +171,8 @@ def run_simulation():
     agent.load_model("mspacman_weights.h5")
 
     #initialize auxiliary data structures
-    # S_LIST = [] # Stores PHI_LENGTH frames at a time
-    # TOT_FRAMES = 0  # Counter of frames covered till now
+    S_LIST = [] # Stores PHI_LENGTH frames at a time
+    TOT_FRAMES = 0  # Counter of frames covered till now
 
     for i_episode in range(NUM_EPISODES):
 
@@ -185,22 +185,21 @@ def run_simulation():
 
         while True:
             ENV.render()
-            OBS = agent.preprocess_observation(OBS)
+            EREG = []
+            # OBS = agent.preprocess_observation(OBS)
             # ensure that S_LIST is populated with PHI_LENGTH frames
-            """
             if TOT_FRAMES < PHI_LENGTH:
                 S_LIST.append(agent.preprocess_observation(OBS))
                 TOT_FRAMES += 1
                 continue
-            """
 #             X = np.array(S_LIST)
 #             print(X.shape) #(4,1,84,84)
 
             # call take_action
-            ACTION = agent.take_action(OBS)
+            ACTION = agent.take_action(S_LIST)
 #             print(ACTION)
 
-            NEXT_OBS, REWARD, DONE, INFO = ENV.step(ACTION) # NEXT_OBS is a numpy.ndarray of shape(210,160,3)
+            OBS, REWARD, DONE, INFO = ENV.step(ACTION) # NEXT_OBS is a numpy.ndarray of shape(210,160,3)
 
             # LIVES = LIVES.get('ale.lives')
             # Calculation of Reward
@@ -209,23 +208,23 @@ def run_simulation():
 #                 print(REWARD)
 
 #             print(NEXT_OBS, REWARD, DONE,'\n\n\n\n\n\n\n\n')
-            NEXT_OBS = agent.preprocess_observation(NEXT_OBS) # shape(1,84,84)
+            # NEXT_OBS = agent.preprocess_observation(NEXT_OBS) # shape(1,84,84)
+            EREG = [S_LIST]
+            #update state list with next observation
+            S_LIST.append(agent.preprocess_observation(OBS))
+            S_LIST.pop(0)
 
-            EREG = [OBS, ACTION, REWARD, NEXT_OBS, DONE]
+            EREG = EREG + [ACTION, REWARD, S_LIST, DONE]
+            # EREG = [OBS, ACTION, REWARD, NEXT_OBS, DONE]
 #             print(EREG)
 
             agent.append_experience_replay_example(EREG)
 
-            OBS = NEXT_OBS
+            # OBS = NEXT_OBS
             if DONE:
                 print("episode:{}/{}, score: {}, e = {}".format(i_episode, NUM_EPISODES, EPISODE_REWARD, agent.epsilon))
                 break
 
-            #update state list with next observation
-            """
-            S_LIST.append(agent.preprocess_observation(OBS))
-            S_LIST.pop(0)
-            """
             EPISODE_REWARD += REWARD
             time += 1
 
