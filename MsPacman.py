@@ -26,26 +26,25 @@ class Agent:
         self.ere_counter = 0
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.99
+
         self.model = self.create_model()
-        self.save_model(0)
+        # self.save_model(0) # Erase after first training
 
 
     def save_model(self, i):
-        print("Saving model...")
-        self.model.save("mspacman_weights.h5")
+        print("Saving model into file %s..."%(i))
+        self.model.save("mspacman_model_%s.h5"%(i))
 
     def load_model(self,path):
-        print("Loading model...")
+        print("Loading model from %s"%(path))
         self.model = load_model(path)
 
 
     def create_model(self):
         model = Sequential()
         model.add(Conv2D(32, (5,5),input_shape=(1,84,84), strides=(1,1), padding='same', data_format='channels_first', activation='relu', use_bias=True, bias_initializer='zeros'))
-        # model.add(MaxPooling2D(pool_size=(2, 2), strides=(2,2), padding='valid', data_format=None))
 
         model.add(Conv2D(32, (5,5), strides=(1,1), padding='same', data_format=None, activation='relu', use_bias=True, bias_initializer='zeros'))
-        # model.add(MaxPooling2D(pool_size=(2, 2), strides=(2,2), padding='valid', data_format=None))
 
         model.add(Flatten())
 
@@ -75,13 +74,10 @@ class Agent:
         Helper function for preprocessing an observation for consumption by our
         deep learning network
         """
-#         print(observation.shape)
         grayscale_observation = color.rgb2gray(observation)
-#         print(grayscale_observation.shape) (210,160)
         resized_observation = transform.resize(grayscale_observation, (1, self.preprocess_image_dim, self.preprocess_image_dim)).astype('float32')
         if prediction:
             resized_observation = np.expand_dims(resized_observation, 0)
-#         print(resized_observation.shape) (1,84,84)
         return resized_observation
 
     def take_action(self, observation):
@@ -125,15 +121,15 @@ class Agent:
 GAME_TYPE = 'MsPacman-v0'
 
 #environment parameters
-NUM_EPISODES = 500
+NUM_EPISODES = 201
 MAX_TIMESTEPS = 5
-# FRAME_SKIP = 2
+# FRAME_SKIP = 0
 PHI_LENGTH = 4
 
 #agent parameters
 NAIVE_RANDOM = False
-EPSILON = 1.0
-GAMMA = 0.95
+EPSILON = 0.01  # Change value after each training session
+GAMMA = 0.995
 EXPERIENCE_REPLAY_CAPACITY = 1000
 MINIBATCH_SIZE = 32
 LEARNING_RATE = 0.1
@@ -168,59 +164,49 @@ def run_simulation():
                 experience_replay_capacity=EXPERIENCE_REPLAY_CAPACITY,
                 minibatch_size=MINIBATCH_SIZE,
                 learning_rate=LEARNING_RATE,gamma = GAMMA,preprocess_image_dim=PREPROCESS_IMAGE_DIM)
-    agent.load_model("mspacman_weights.h5")
+    agent.load_model("mspacman_model_300.h5") # Change after each training session
 
     #initialize auxiliary data structures
     S_LIST = [] # Stores PHI_LENGTH frames at a time
     TOT_FRAMES = 0  # Counter of frames covered till now
+    how_often = 50
 
     for i_episode in range(NUM_EPISODES):
 
-        if i_episode != 0 and i_episode%100==0:
-            agent.save_model(i_episode)
+        if i_episode != 0 and i_episode%how_often==0:
+            agent.save_model(i_episode+300) # Change after each training
 
         OBS = ENV.reset()
         EPISODE_REWARD = 0
         time = 0
 
         while True:
-            ENV.render()
+            # ENV.render()
             EREG = []
-            # OBS = agent.preprocess_observation(OBS)
+
             # ensure that S_LIST is populated with PHI_LENGTH frames
             if TOT_FRAMES < PHI_LENGTH:
                 S_LIST.append(agent.preprocess_observation(OBS))
                 TOT_FRAMES += 1
                 continue
-#             X = np.array(S_LIST)
-#             print(X.shape) #(4,1,84,84)
+
 
             # call take_action
             ACTION = agent.take_action(S_LIST)
-#             print(ACTION)
+
 
             OBS, REWARD, DONE, INFO = ENV.step(ACTION) # NEXT_OBS is a numpy.ndarray of shape(210,160,3)
 
-            # LIVES = LIVES.get('ale.lives')
-            # Calculation of Reward
-
-#             if (time%50==0):
-#                 print(REWARD)
-
-#             print(NEXT_OBS, REWARD, DONE,'\n\n\n\n\n\n\n\n')
-            # NEXT_OBS = agent.preprocess_observation(NEXT_OBS) # shape(1,84,84)
             EREG = [S_LIST]
             #update state list with next observation
             S_LIST.append(agent.preprocess_observation(OBS))
             S_LIST.pop(0)
 
             EREG = EREG + [ACTION, REWARD, S_LIST, DONE]
-            # EREG = [OBS, ACTION, REWARD, NEXT_OBS, DONE]
-#             print(EREG)
+
 
             agent.append_experience_replay_example(EREG)
 
-            # OBS = NEXT_OBS
             if DONE:
                 print("episode:{}/{}, score: {}, e = {}".format(i_episode, NUM_EPISODES, EPISODE_REWARD, agent.epsilon))
                 break
@@ -236,6 +222,7 @@ def plot_rewards(score_list, episode_num):
     episode_num = [x for x in range(0,episode_num)]
     plt.plot(episode_num, score_list)
     plt.show()
+
 
 run_simulation()
 plot_rewards(SCORE_LIST, NUM_EPISODES)
