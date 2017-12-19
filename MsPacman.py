@@ -25,19 +25,28 @@ class Agent:
         self.memory = []
         self.ere_counter = 0
         self.epsilon_min = 0.01
-        self.epsilon_decay = 0.99
+        self.epsilon_decay = 0.995
 
         self.model = self.create_model()
-        # self.save_model(0) # Erase after first training
+        # self.save_my_model() # Erase after first training
 
 
-    def save_model(self, i):
-        print("Saving model into file %s..."%(i))
-        self.model.save("mspacman_model_%s.h5"%(i))
+    def save_my_model(self):
+        # self.model.save("mspacman_model_%s.h5"%(i))
+        # serialize model to JSON
+        model_json = self.model.to_json()
+        with open("model.json", "w") as json_file:
+             json_file.write(model_json)
 
-    def load_model(self,path):
+        # serialize weights to HDF5
+        self.model.save_weights("model.h5")
+        print("Saved model to disk")
+
+
+    def load_my_model(self,path):
         print("Loading model from %s"%(path))
-        self.model = load_model(path)
+        # self.model = load_model(path)
+        self.model.load_weights(path)
 
 
     def create_model(self):
@@ -128,7 +137,7 @@ PHI_LENGTH = 4
 
 #agent parameters
 NAIVE_RANDOM = False
-EPSILON = 0.01  # Change value after each training session
+EPSILON = 0.2  # Change value after each training session
 GAMMA = 0.995
 EXPERIENCE_REPLAY_CAPACITY = 1000
 MINIBATCH_SIZE = 32
@@ -164,7 +173,7 @@ def run_simulation():
                 experience_replay_capacity=EXPERIENCE_REPLAY_CAPACITY,
                 minibatch_size=MINIBATCH_SIZE,
                 learning_rate=LEARNING_RATE,gamma = GAMMA,preprocess_image_dim=PREPROCESS_IMAGE_DIM)
-    agent.load_model("mspacman_model_300.h5") # Change after each training session
+    agent.load_my_model("model.h5")
 
     #initialize auxiliary data structures
     S_LIST = [] # Stores PHI_LENGTH frames at a time
@@ -174,7 +183,7 @@ def run_simulation():
     for i_episode in range(NUM_EPISODES):
 
         if i_episode != 0 and i_episode%how_often==0:
-            agent.save_model(i_episode+300) # Change after each training
+            agent.save_my_model()
 
         OBS = ENV.reset()
         EPISODE_REWARD = 0
