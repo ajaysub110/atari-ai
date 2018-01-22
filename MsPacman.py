@@ -137,7 +137,7 @@ PHI_LENGTH = 4
 
 #agent parameters
 NAIVE_RANDOM = False
-EPSILON = 0.2  # Change value after each training session
+EPSILON = 0.5  # Change value after each training session
 GAMMA = 0.995
 EXPERIENCE_REPLAY_CAPACITY = 1000
 MINIBATCH_SIZE = 32
@@ -178,7 +178,7 @@ def run_simulation():
     #initialize auxiliary data structures
     S_LIST = [] # Stores PHI_LENGTH frames at a time
     TOT_FRAMES = 0  # Counter of frames covered till now
-    how_often = 50
+    how_often = 25
 
     for i_episode in range(NUM_EPISODES):
 
